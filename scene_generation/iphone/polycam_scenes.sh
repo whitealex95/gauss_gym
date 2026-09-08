@@ -12,8 +12,27 @@ set -e
 
 POLYCAM_PATH="$1"
 if [[ -z "$POLYCAM_PATH" ]]; then
-  echo "usage: $0 <POLYCAM_PATH>" >&2
+  echo "usage: $0 <POLYCAM_PATH or raw_data.zip>" >&2
   exit 1
+fi
+
+if [[ -f "$POLYCAM_PATH" && "$POLYCAM_PATH" == *.zip ]]; then
+  zip_path="$POLYCAM_PATH"
+  POLYCAM_PATH="${zip_path%.zip}"
+  mkdir -p "$POLYCAM_PATH"
+  unzip -q -o "$zip_path" -d "$POLYCAM_PATH"
+  # Some exports wrap everything in a single top-level folder.
+  if [[ ! -e "$POLYCAM_PATH/keyframes" ]]; then
+    inner=$(find "$POLYCAM_PATH" -mindepth 2 -maxdepth 2 -type d -name keyframes | head -1)
+    if [[ -n "$inner" ]]; then
+      mv "$(dirname "$inner")"/* "$POLYCAM_PATH"/ && rmdir "$(dirname "$inner")"
+    fi
+  fi
+  if [[ ! -e "$POLYCAM_PATH/raw.glb" ]]; then
+    glb=$(ls "$POLYCAM_PATH"/*.glb 2>/dev/null | head -1)
+    [[ -n "$glb" ]] && mv "$glb" "$POLYCAM_PATH/raw.glb"
+  fi
+  echo "Unzipped $zip_path into $POLYCAM_PATH"
 fi
 
 missing=0

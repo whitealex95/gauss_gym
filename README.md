@@ -90,7 +90,8 @@ Evaluate policies with: `gauss_play --runner.load_run=<RUN_NAME>`, where `<RUN_N
 1. Download [`Polycam`](https://poly.cam/)
 2. Use Polycam in "Space" mode to capture scene.
 3. Process the data in the Polycam app. Export "Raw Data" and "GLTF" from the app. Place the unzipped contents in <POLYCAM_PATH> and rename the `*.glb` file to `raw.glb`.
-  - **Note:** Exporting "Raw Data" may require the upgraded version of the app.
+  - **Note:** The "Raw Data" export is hidden by default. In the Polycam app open Settings, turn on **Developer mode**, then capture the scene. Raw data is only available for captures made **after** Developer mode was enabled, only in LiDAR / Room / Space mode, and only on a LiDAR device (iPhone 12 Pro or newer Pro models, iPad Pro 2020 or newer). Export from the same device that made the capture. See [Polycam's guide](https://learn.poly.cam/hc/en-us/articles/38276871185044-How-to-Extract-Raw-Data-and-What-Is-Included).
+  - You can also pass the raw data `.zip` straight to `polycam_scenes.sh`. It unzips into a folder with the same name and uses the `raw.glb` inside the zip.
   - The GLTF export alone (a single `.glb`) is not enough. The pipeline needs the keyframe images, depth maps, and camera poses from the "Raw Data" export. After unzipping, `<POLYCAM_PATH>` should look like:
     ```
     <POLYCAM_PATH>/
