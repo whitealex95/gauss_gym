@@ -34,8 +34,17 @@ if [[ ! -f $SENTINEL_FILE ]]; then
 
   # Download Isaac Gym
   if [[ ! -d isaacgym ]]; then
-    wget https://developer.nvidia.com/isaac-gym-preview-4 -O IsaacGym_Preview_4_Package.tar.gz
-    tar -xzf IsaacGym_Preview_4_Package.tar.gz
+    ISAACGYM_TAR=IsaacGym_Preview_4_Package.tar.gz
+    if [[ ! -f $ISAACGYM_TAR ]]; then
+      wget https://developer.nvidia.com/isaac-gym-preview-4 -O $ISAACGYM_TAR
+    fi
+    # NVIDIA sometimes returns an HTML page instead of the archive.
+    if ! gzip -t $ISAACGYM_TAR 2>/dev/null; then
+      echo "ERROR: $ISAACGYM_TAR is not a valid gzip archive. Download Isaac Gym Preview 4 manually from https://developer.nvidia.com/isaac-gym and place the tarball in $SCRIPT_DIR" >&2
+      rm -f $ISAACGYM_TAR
+      exit 1
+    fi
+    tar -xzf $ISAACGYM_TAR
   fi
 
   $CONDA_ROOT/bin/conda run -n ${ENV_NAME} uv pip install -e .

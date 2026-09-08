@@ -29,7 +29,7 @@ dependencies = [
     "trimesh[recommend]==4.7.4",
     "scipy==1.10.1",
     "einops==0.8.0",
-    "gsplat @ git+https://github.com/nerfstudio-project/gsplat.git",
+    "gsplat @ git+https://github.com/nerfstudio-project/gsplat.git@2323de5905d5e90e035f792fe65bad0fedd413e7",
     "tensorflow-cpu==2.11.* ; platform_machine == 'x86_64' and python_version < '3.11'",
     "tdigest",
     "msgpack",

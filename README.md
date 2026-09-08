@@ -42,6 +42,12 @@ This will create a new `gauss_gym` conda environment under `~/.gauss_gym_deps`, 
 source ~/.gauss_gym_deps/miniconda3/bin/activate gauss_gym
 ```
 
+`setup_dev.sh` is safe to re-run. It skips steps that already finished (miniconda, the conda env, the Isaac Gym download) and stops early once `~/.gauss_gym_deps/.env_setup_finished_dev` exists. Delete that file to force the `pip install` step to run again.
+
+Notes:
+- `gsplat` is pinned to a fixed git commit in `pyproject.toml`. Newer upstream commits require `torch>=2.7`, which conflicts with the `torch==2.4.1` pin needed by Isaac Gym Preview 4 (Python 3.8). If you see `Because you require torch>=2.7 and torch==2.4.1 ...`, make sure the pin is still in place.
+- If the Isaac Gym download fails (NVIDIA occasionally returns an HTML page), download `IsaacGym_Preview_4_Package.tar.gz` from https://developer.nvidia.com/isaac-gym, put it in the repo root, and re-run `setup_dev.sh`.
+
 # Training
 
 Configs have been provided for:
