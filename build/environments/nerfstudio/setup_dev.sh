@@ -55,8 +55,20 @@ if [[ ! -f $SENTINEL_FILE ]]; then
   $CONDA_ROOT/bin/conda run -n ns pip install -e $NS_PATH/.
   # $CONDA_ROOT/bin/conda run -n ns pip install nerfstudio
 
-  # NS upgrades to numpy 2, which doesn't work with torch 2.1.2.
-  $CONDA_ROOT/bin/conda run -n ns pip install numpy==1.26.4
+  # Extras for the phone-scan -> MuJoCo/viser tools (scene_generation/iphone/).
+  $CONDA_ROOT/bin/conda run -n ns pip install mujoco coacd "plyfile<1.1"
+
+  # Pins, applied last so nothing above can undo them:
+  # - torch 2.1.2 was built against numpy 1.x.
+  # - nerfstudio's fast image loader uses a private Pillow encoder call that Pillow 11+ changed.
+  $CONDA_ROOT/bin/conda run -n ns pip install "numpy==1.26.4" "pillow<11"
+
+  # COLMAP for photos without poses. Kept in its own env so its solver cannot
+  # touch the torch/CUDA packages in `ns`. 3.12+ renamed the CLI options that
+  # nerfstudio's wrapper passes, so stay on 3.11.
+  if [[ ! -d $CONDA_ROOT/envs/colmap ]]; then
+    $CONDA_ROOT/bin/conda create -y -n colmap -c conda-forge "colmap=3.11.*=cuda*"
+  fi
 
   # Call this conda directly: inside `conda run` a bare `conda` may resolve to
   # another conda install on the user's PATH.

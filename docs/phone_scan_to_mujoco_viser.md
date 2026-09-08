@@ -266,24 +266,93 @@ Notes on the format:
 
 If you want the camera images to look real (the `gauss_gym` approach: mesh for
 physics, splat for pixels), you can train a splat from the same photos even
-without LiDAR. You need the individual photos, not only the GLB. Polycam lets
-you export the source images from a photo capture, or just record a video of
-the same walk.
+without LiDAR. You need the individual photos, not only the GLB. Polycam keeps
+them as "raw data" for a photo-mode capture: open the capture on poly.cam,
+click the download arrow, and choose **Images**. You get a zip with
+`keyframes/images/*.jpg` and `keyframes/gravity/*.json` (one gravity vector per
+photo, in the phone frame). No poses and no depth, so COLMAP estimates the poses.
+
+### 5.1 Poses, training, export: one script
 
 ```bash
 source ~/.ns_deps/miniconda3/bin/activate ns
-conda install -c conda-forge colmap       # once
-
-ns-process-data images --data photos/ --output-dir scene_ns/      # or: ns-process-data video --data walk.mp4 ...
-ns-train splatfacto --data scene_ns/ --viewer.quit-on-train-completion True
-ns-export gaussian-splat --load-config outputs/scene_ns/splatfacto/<timestamp>/config.yml --output-dir scene_ns/splat
+unzip images.zip -d scene_splat/raw
+bash scene_generation/iphone/photos_to_splat.sh scene_splat/raw/keyframes/images scene_splat
 ```
 
-COLMAP gives poses in an arbitrary frame and scale. Align the splat to the mesh
-by picking three or more matching points in both and solving a similarity
-transform (`trimesh.registration.procrustes` does this), then apply it to the
-splat means. After that, the splat and the MuJoCo model share one frame and you
-can render the simulated camera through gsplat or the nerfstudio viewer.
+The script runs `ns-process-data images` (COLMAP with GPU SIFT and exhaustive
+matching), then `ns-train splatfacto` with the same settings the LiDAR pipeline
+uses minus depth, then `ns-export gaussian-splat`. Outputs land in
+`scene_splat/transforms.json` and `scene_splat/splatfacto/` (checkpoint,
+`config.yml`, `splat.ply`). On a 4090 with 151 photos COLMAP takes about two
+minutes.
+
+COLMAP lives in its own conda env (`~/.ns_deps/miniconda3/envs/colmap`), and
+the nerfstudio setup script creates it. Version 3.11 is required: COLMAP 3.12
+renamed its command-line options and nerfstudio's wrapper does not know the new names.
+
+### 5.2 Put the splat in the mesh frame
+
+COLMAP's frame has arbitrary orientation, position, and scale. The MuJoCo scene
+from Section 4 is z-up, metric, floor at z = 0. Align the splat to it:
+
+```bash
+python scene_generation/iphone/align_splat_to_mesh.py \
+    --ply scene_splat/splatfacto/splat.ply --transforms scene_splat/transforms.json \
+    --gravity-dir scene_splat/raw/keyframes/gravity --images-dir scene_splat/raw/keyframes/images \
+    --mesh room_mujoco/scene_zup.glb --out-dir scene_splat/aligned
+```
+
+How it works, in two steps:
+
+1. **Sparse cloud to mesh.** The gravity vectors rotated by the COLMAP camera
+   poses give the world up direction (they agree within a couple of degrees
+   across all frames). Point spreads give a first guess for scale and
+   translation, then a scaled ICP against points sampled on the mesh runs from
+   24 starting yaws and keeps the best fit. On the room scan: fitness 0.61,
+   RMSE 4 cm.
+2. **Splat to mesh.** `ns-export` writes the splat in nerfstudio's internal
+   frame, which is the saved dataparser transform and scale followed by a
+   +90° rotation about x. Composing the sparse fit with the inverse of that
+   gives the splat alignment directly. A tight rigid ICP then refines it. On
+   the room scan: RMSE 5 cm. The fitness number is lower than for the sparse
+   cloud because splat floaters and mesh holes count against it, so check the
+   result visually too.
+
+Why not just ICP the splat? Scaled ICP with partial overlap likes to shrink
+the source to fit inside dense target regions. It found scale 1.7 where the
+correct value was 3.0. Pinning the scale from step 1 avoids that.
+
+The tool writes `splat_to_mesh.json` (the 4x4 similarity) and
+`splat_aligned.ply` with positions, rotations, and scales transformed.
+
+### 5.3 Render the aligned splat
+
+```bash
+python scene_generation/iphone/render_splat_video.py scene_splat/aligned/splat_aligned.ply splat_lookaround.mp4 \
+    --mode lookaround --center 0 0 1.2
+```
+
+Same camera path as `render_glb_video.py`, so a mesh video and a splat video
+line up frame by frame. Only look at an indoor splat from inside the room. From
+outside you see through floaters and the backs of walls, and the picture is
+noise.
+
+The gsplat CUDA kernels compile on first use and need the compiler settings
+from the conda activation hooks, so run this with `conda activate ns` (or
+`source ~/.ns_deps/miniconda3/bin/activate ns`), not by calling the env's
+python by path.
+
+After this, the splat and the MuJoCo model share one frame. A MuJoCo camera
+pose can be handed to gsplat to render the photoreal view: build the OpenCV
+view matrix from the camera position and orientation the same way
+`render_splat_video.py` does.
+
+### 5.4 Environment notes that cost time
+
+- The `ns` env must stay on numpy 1.26 (torch 2.1.2) and Pillow 10 (nerfstudio's image loader). `pip install` of unrelated packages tends to upgrade both. The setup script re-pins them last.
+- `opencv-python` and `plyfile` complain about numpy 1.x on install but work.
+- COLMAP 3.12+ renamed its CLI options. Use 3.11 with nerfstudio, in its own conda env.
 
 ---
 
@@ -296,4 +365,4 @@ can render the simulated camera through gsplat or the nerfstudio viewer.
 5. Export OBJ + texture for visuals.
 6. Run `glb_to_mujoco.py`. It writes visual meshes, a floor height field, convex wall parts, and the MJCF.
 7. Open `scene.xml` in the MuJoCo viewer and check the test ball lands on the floor.
-8. Optional: train a splat from the photos for photoreal camera images.
+8. Optional: download the Images zip, run `photos_to_splat.sh`, then `align_splat_to_mesh.py`.
