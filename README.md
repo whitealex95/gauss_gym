@@ -91,10 +91,21 @@ Evaluate policies with: `gauss_play --runner.load_run=<RUN_NAME>`, where `<RUN_N
 2. Use Polycam in "Space" mode to capture scene.
 3. Process the data in the Polycam app. Export "Raw Data" and "GLTF" from the app. Place the unzipped contents in <POLYCAM_PATH> and rename the `*.glb` file to `raw.glb`.
   - **Note:** Exporting "Raw Data" may require the upgraded version of the app.
+  - The GLTF export alone (a single `.glb`) is not enough. The pipeline needs the keyframe images, depth maps, and camera poses from the "Raw Data" export. After unzipping, `<POLYCAM_PATH>` should look like:
+    ```
+    <POLYCAM_PATH>/
+      raw.glb
+      mesh_info.json
+      keyframes/
+        corrected_images/   (or images/)
+        corrected_cameras/  (or cameras/)
+        depth/
+    ```
+    `polycam_scenes.sh` checks for these files and stops with a message if any are missing.
 4. Create the nerfstudio conda environment with `bash build/environments/nerfstudio/setup_dev.sh`
   - This will create a nerfstudio environment in `~/.ns_deps`. Which you can activate with: `source ~/.ns_deps/miniconda3/bin/activate ns`
 5. With the `ns` conda environment active, train a gaussian splat with `bash scene_generation/iphone/polycam_scenes.sh <POLYCAM_PATH>`
-6. Generate environment meshes for the scene with: `python scene_generation/generate_mesh_slices.py --config=scene_generation/configs/polycam.py --config.load_dir=<POLYCAM_PATH>`
+6. Still in the `ns` environment, generate environment meshes for the scene with: `python scene_generation/generate_mesh_slices.py --config=scene_generation/configs/polycam.py --config.load_dir=<POLYCAM_PATH>`. Run this from the repo root. It writes `<POLYCAM_PATH>/meshes/*.npz`, which gauss_gym loads together with `<POLYCAM_PATH>/splatfacto/`.
 7. Train/evaluate a policy in your scene with: `--terrain.scenes.iphone_data.repo_id=local:<POLYCAM_PATH>`. You can also add a new entry to the `terrain.scenes` of the config using your custom local or huggingface path.
 
 # Config structure

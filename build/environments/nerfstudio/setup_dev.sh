@@ -3,7 +3,7 @@ set -ex
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-rm -rf /etc/apt/sources.list.d/cuda.list
+rm -f /etc/apt/sources.list.d/cuda.list 2>/dev/null || true
 
 echo "Installing NS dependencies"
 echo $SCRIPT_DIR
@@ -38,7 +38,13 @@ if [[ ! -f $SENTINEL_FILE ]]; then
   $CONDA_ROOT/bin/conda run -n ns pip install torch==2.1.2+cu121 torchvision==0.16.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
   $CONDA_ROOT/bin/conda run -n ns pip install ml_collections open3d tqdm opencv-python Pillow
 
-  $CONDA_ROOT/bin/conda run -n ns pip install ninja git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+  # tiny-cuda-nn uses a legacy setup.py that imports pkg_resources, which
+  # setuptools>=81 removed. Build it against an older setuptools without isolation.
+  if [[ -z "${TCNN_CUDA_ARCHITECTURES:-}" ]]; then
+    export TCNN_CUDA_ARCHITECTURES=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')
+  fi
+  $CONDA_ROOT/bin/conda run -n ns pip install "setuptools<80" ninja
+  $CONDA_ROOT/bin/conda run -n ns pip install --no-build-isolation git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 
   # Install Nerfstudio.
   NS_PATH=$WORKSPACE_DIR/nerfstudio
@@ -52,8 +58,9 @@ if [[ ! -f $SENTINEL_FILE ]]; then
   # NS upgrades to numpy 2, which doesn't work with torch 2.1.2.
   $CONDA_ROOT/bin/conda run -n ns pip install numpy==1.26.4
 
-  $CONDA_ROOT/bin/conda run -n ns conda config --add channels conda-forge
-  $CONDA_ROOT/bin/conda run -n ns conda install s5cmd
+  # Call this conda directly: inside `conda run` a bare `conda` may resolve to
+  # another conda install on the user's PATH.
+  $CONDA_ROOT/bin/conda install -y -n ns -c conda-forge s5cmd
 
   source $CONDA_ROOT/bin/activate ns
   
