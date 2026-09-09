@@ -77,6 +77,13 @@ def main():
     def _(_, k=k):
       handles[k].visible = boxes[k].value
 
+  @server.on_client_connect
+  def _(client):
+    # Start inside the room at eye height, looking across it.
+    client.camera.position = (0.0, -2.0, 1.5)
+    client.camera.look_at = (0.0, 2.0, 1.2)
+    client.camera.up_direction = (0.0, 0.0, 1.0)
+
   print(f'open http://localhost:{args.port}')
   while True:
     time.sleep(1.0)
